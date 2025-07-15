@@ -47,6 +47,17 @@ print("XGBoost Accuracy:", accuracy_score(y_test, y_pred_xgb))
 print("XGBoost Classification Report:\n", classification_report(y_test, y_pred_xgb))
 print("XGBoost Confusion Matrix:\n", confusion_matrix(y_test, y_pred_xgb))
 
+import matplotlib.pyplot as plt
+import pandas as pd
+
+feature_important = xgb_model.get_booster().get_score(importance_type='weight')
+keys = list(feature_important.keys())
+values = list(feature_important.values())
+
+data = pd.DataFrame(data=values, index=keys, columns=["score"]).sort_values(by = "score", ascending=True)
+fig = data.nlargest(40, columns="score").plot(kind='barh', figsize = (20,10))
+plt.show()
+
 # Save the models
 joblib.dump(logistic_model, "models/logistic_model.joblib")
 joblib.dump(rf_model, "models/rf_model.joblib")
