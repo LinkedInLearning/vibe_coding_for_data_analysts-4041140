@@ -1,61 +1,91 @@
-###################################
-###   Deploying your model      ###
-### in a streamlit application. ###
-###################################
-
 import joblib
+
 import streamlit as st
 import textstat
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-import pandas as pd
-from xgboost import XGBClassifier
+from better_profanity import profanity
 
-st.title("Song Popularity Predictor")
+st.title("Text Analysis Application")
 
-# User input for song features
-lyrics = st.text_area("Enter Song Lyrics", "Input the lyrics of the song here...")
-genre = st.selectbox("Select Genre", ['Alternative', 'Christian', 'Country', 'Hip-Hop', 'Pop', 'Rock'])
-songwriter_count = st.number_input("Enter Songwriter Count", min_value=1)
-producer_count = st.number_input("Enter Producer Count", min_value=1)
+# User inputs
+text = st.text_area("Enter your lyrics:")
+genre = st.selectbox("Select Genre:", ['Alternative', 'Christian', 'Country', 'Hip-Hop', 'Pop', 'Rock'])
+songwriter_count = st.number_input("Songwriter Count:", min_value=1, value=1)
+producer_count = st.number_input("Producer Count:", min_value=1, value=1)
 
-model = joblib.load("xgb_model.joblib")
+if st.button("Analyze"):
+    if not text.strip():
+        st.warning("Please enter some text.")
+    else:
+        # Textstat metrics
+        difficult_words = textstat.difficult_words(text)
+        smog_index = textstat.smog_index(text)
+        word_count = len(text.split())
 
-profanity_list = ["damn", "hell", "shit", "fuck", "bitch"]
+        # Sentiment analysis
+        analyzer = SentimentIntensityAnalyzer()
+        sentiment = analyzer.polarity_scores(text)
 
-genre_mapping = pd.DataFrame({
-    "Alternative": [0],
-    "Christian": [0],
-    "Country": [0],
-    "Hip-Hop": [0],
-    "Pop": [0],
-    "Rock": [0]
-})
+        # Profanity analysis
+        profanity.load_censor_words()
+        words = text.split()
+        profane_words = [w for w in words if profanity.contains_profanity(w)]
+        profanity_count = len(profane_words)
+        profanity_proportion = profanity_count / word_count if word_count > 0 else 0
 
-genre_mapping.loc[0, genre] = 1
+        # Prepare features for model
+        import numpy as np
+        import pandas as pd
+        # Genre one-hot encoding
+        genres = ['Alternative', 'Christian', 'Country', 'Hip-Hop', 'Pop', 'Rock']
+        genre_features = [1 if genre == g else 0 for g in genres]
 
-def preprocess_lyrics(lyrics):
-    # Compute text statistics
-    sentiment = SentimentIntensityAnalyzer().polarity_scores(lyrics)
+        features = [
+            sentiment['compound'],
+            word_count,
+            profanity_count,
+            producer_count,
+            songwriter_count,
+            smog_index,
+            difficult_words,
+            profanity_proportion
+        ] + genre_features
 
-    # Create a DataFrame with the features
-    features = pd.DataFrame({
-        "sentiment": [sentiment["compound"]],
-        "word_count": [len(lyrics.split())],
-        "profanity_count": [sum(1 for word in lyrics.split() if word.lower() in profanity_list)],
-        "producer_count": [producer_count],
-        "songwriter_count": [songwriter_count],
-        "smog_index": [textstat.smog_index(lyrics)],
-        "difficult_words": [textstat.difficult_words(lyrics)],
-        "profanity_proportion": [sum(1 for word in lyrics.split() if word.lower() in profanity_list) / len(lyrics.split())]
-        })
-    features = pd.concat([features, genre_mapping], axis=1)
-    features = features.fillna(0)  # Fill NaN values with 0
-    return features
+        features_array = np.array(features).reshape(1, -1)
 
-if st.button("Predict"):
-    # Process input and generate prediction
-    features = preprocess_lyrics(lyrics)
-    features = features.values  # Convert DataFrame to numpy array for prediction
-    features = features.reshape(1, -1)  # Reshape for single prediction
-    prediction = model.predict(features)
-    st.write(f"Predicted Popularity: {prediction}")
+        # Load model and predict
+        try:
+            model = joblib.load("../models/xgb_model.joblib")
+        except FileNotFoundError:
+            try:
+                model = joblib.load("models/xgb_model.joblib")
+            except FileNotFoundError:
+                try:
+                    model = joblib.load("logistic_model.joblib")
+                except Exception as e:
+                    st.error(f"Model file not found: {e}")
+                    model = None
+
+        prediction = None
+        if model is not None:
+            try:
+                prediction = model.predict(features_array)[0]
+            except Exception as e:
+                st.error(f"Prediction error: {e}")
+
+        st.subheader("Results")
+        st.write(f"**Word Count:** {word_count}")
+        st.write(f"**Difficult Words:** {difficult_words}")
+        st.write(f"**SMOG Index:** {smog_index:.2f}")
+        st.write(f"**Profane Words:** {profanity_count}")
+        st.write(f"**Profanity Proportion:** {profanity_proportion:.3f}")
+        st.write(f"**Sentiment (compound):** {sentiment['compound']:.3f}")
+        st.write(f"**Sentiment (pos/neu/neg):** {sentiment['pos']:.3f} / {sentiment['neu']:.3f} / {sentiment['neg']:.3f}")
+
+        if prediction is not None:
+            st.success(f"**Predicted Popularity:** {prediction}")
+
+        st.markdown("---")
+        st.write(f"**Genre:** {genre}")
+        st.write(f"**Songwriter Count:** {songwriter_count}")
+        st.write(f"**Producer Count:** {producer_count}")
