@@ -3,35 +3,53 @@
 #####################
 
 import joblib
-import xgboost as xgb
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score
+
+# Load data
+X_train = joblib.load("data/songs_scaled_train.joblib")
+X_test = joblib.load("data/songs_scaled_test.joblib")
+y_train = joblib.load("data/number_1_hit_train.joblib")
+y_test = joblib.load("data/number_1_hit_test.joblib")
+
+# Linear Model
+linear_model = LogisticRegression(max_iter=1000)
+linear_model.fit(X_train, y_train)
+y_pred_linear = linear_model.predict(X_test)
+print("Linear Model Accuracy:", accuracy_score(y_test, y_pred_linear))
+
+# Random Forest
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_model.fit(X_train, y_train)
+y_pred_rf = rf_model.predict(X_test)
+print("Random Forest Accuracy:", accuracy_score(y_test, y_pred_rf))
+
+# XGBoost
+xgb_model = XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+xgb_model.fit(X_train, y_train)
+y_pred_xgb = xgb_model.predict(X_test)
+print("XGBoost Accuracy:", accuracy_score(y_test, y_pred_xgb))
+
 from sklearn.model_selection import GridSearchCV
 
-# Load the training data
-X_train, X_test, y_train, y_test, feature_names = joblib.load("data/model_data.joblib")
-
-# Define the parameter grid for XGBoost
 param_grid = {
+    'n_estimators': [100, 200, 300],
     'max_depth': [3, 5, 7],
     'learning_rate': [0.01, 0.1, 0.2],
-    'n_estimators': [50, 100, 200],
     'subsample': [0.8, 1.0],
-    'colsample_bytree': [0.8, 1.0],
-    'gamma': [0, 0.1, 0.2]
+    'colsample_bytree': [0.8, 1.0]
 }
 
-# Initialize the XGBoost classifier
-xgb_model = xgb.XGBClassifier(
-    eval_metric='logloss', random_state=42
-)
+xgb = XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+grid_search = GridSearchCV(xgb, param_grid, cv=3, scoring='accuracy', verbose=1, n_jobs=-1)
+grid_search.fit(X_train, y_train)
 
-# Perform grid search with cross-validation
-grid_search = GridSearchCV(estimator=xgb_model, param_grid=param_grid,
-                           scoring='accuracy', cv=3, verbose=1)
+print("Best XGBoost Parameters:", grid_search.best_params_)
+print("Best XGBoost Accuracy:", grid_search.best_score_)
 
-grid_search.fit(X_train, y_train)   
-
-# Get the best parameters and score
-best_params = grid_search.best_params_
-best_score = grid_search.best_score_
-
-joblib.dump(grid_search.best_estimator_, "models/xgb_model_tuned.joblib")
+# Use the best estimator to predict
+best_xgb = grid_search.best_estimator_
+y_pred_xgb_tuned = best_xgb.predict(X_test)
+print("Tuned XGBoost Test Accuracy:", accuracy_score(y_test, y_pred_xgb_tuned))

@@ -2,45 +2,72 @@
 ### Reshaping data ###
 ######################
 
-import polars as pl
+import pandas as pd
 
-pl.Config.set_tbl_cols(20)
-
-songs = pl.read_csv("data/songs.csv")
-
-songs = songs.with_columns(
-    pl.col("release_week").str.replace(" 00:00:00", "")
-)
-
-songs = songs.with_columns(
-    pl.col("release_week").str.strptime(pl.Date, "%Y-%m-%d")
-)
-
-songs = songs.with_columns(
-    pl.col("Genre").cast(pl.Categorical)
-)
-
-numeric_cols = songs.select(pl.col(pl.Float64, pl.Int64))
-
-songs.select(numeric_cols).to_pandas().corr()
+songs_joined = pd.read_csv('data/songs_joined.csv')
+# Remove the time from release_week and convert to date
+if 'release_week' in songs_joined.columns:
+    songs_joined['release_week'] = pd.to_datetime(songs_joined['release_week']).dt.date
 
 
-# Find the means and standard deviations for the numeric variables for each group in the genre variable.
+songs_joined['release_week']
+    
+# Convert genre to a categorical variable
+if 'Genre' in songs_joined.columns:
+    songs_joined['Genre'] = songs_joined['Genre'].astype('category')
 
-means = songs.group_by("Genre").agg(
-    [pl.col(col).mean().alias(f"{col}_mean") for col in numeric_cols.columns]
-)
+print(songs_joined.corr(numeric_only=True))
 
-stddevs = songs.group_by("Genre").agg(
-    [pl.col(col).std().alias(f"{col}_stddev") for col in numeric_cols.columns]
-)
+# Visualize the correlations using a corrplot
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-means.join(stddevs, on="Genre")
+correlation_matrix = songs_joined.corr(numeric_only=True)
+plt.figure(figsize=(10, 8))
+sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f', square=True)
+plt.title('Correlation Matrix of Numeric Variables')
+plt.tight_layout()
+plt.show()
+
+# Find means and standard deviations for lyric features and personnel variables by genre
+lyric_features = [col for col in songs_joined.columns if 'lyric' in col.lower()]
+personnel_features = [col for col in songs_joined.columns if 'personnel' in col.lower()]
+selected_features = lyric_features + personnel_features
+
+# If 'Genre' exists, group by it and calculate stats
+if 'Genre' in songs_joined.columns and selected_features:
+    means = songs_joined.groupby('Genre')[selected_features].mean()
+    stds = songs_joined.groupby('Genre')[selected_features].std()
+    print('Means by Genre:')
+    print(means)
+    print('\nStandard Deviations by Genre:')
+    print(stds)
+
+# Means and standard deviations for selected features by genre
+selected_stats = ['sentiment', 'word_count', 'producer_count', 'songwriter_count']
+available_stats = [col for col in selected_stats if col in songs_joined.columns]
+if 'Genre' in songs_joined.columns and available_stats:
+    means_stats = songs_joined.groupby('Genre')[available_stats].mean()
+    stds_stats = songs_joined.groupby('Genre')[available_stats].std()
+    print('\nMeans for sentiment, word_count, producer_count, songwriter_count by Genre:')
+    print(means_stats)
+    print('\nStandard Deviations for sentiment, word_count, producer_count, songwriter_count by Genre:')
+    print(stds_stats)
+
+# Melt the songs data
+melt_vars = ['sentiment', 'word_count', 'profanity_count', 'smog_index']
+id_var = 'song_id'
+available_melt_vars = [col for col in melt_vars if col in songs_joined.columns]
+if id_var in songs_joined.columns and available_melt_vars:
+    songs_melted = pd.melt(
+        songs_joined,
+        id_vars=[id_var],
+        value_vars=available_melt_vars,
+        var_name='feature',
+        value_name='value'
+    )
+    songs_melted.set_index(id_var, inplace=True)
+    print('\nMelted songs data:')
+    print(songs_melted.head())
 
 
-# Melt the df data so that song_id is the index and the 'sentiment', 'word_count', 'profanity_count', and 'smog_index' variables are everything else.
-
-melted = songs.unpivot(
-    on=["sentiment", "word_count", "profanity_count", "smog_index"],
-    index="song_id"
-)   

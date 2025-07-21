@@ -6,8 +6,8 @@
 import pandas as pd
 import pyarrow as pa
 
-song_lyric_features = pd.read_csv(
-    "data/song_lyric_features.csv", 
-    dtype_backend='pyarrow', 
-    engine='pyarrow'
+df = pd.read_csv(
+    'data/song_lyric_features.csv',
+    engine='pyarrow',
+    dtype_backend='pyarrow'
 )

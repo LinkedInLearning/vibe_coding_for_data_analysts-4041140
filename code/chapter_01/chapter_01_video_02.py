@@ -2,14 +2,20 @@
 ### Loading data with polars ###
 ################################
 
-import polars as pl
+import pandas as pd
 
-song_lyric_features = pl.read_csv(
-    "data/song_lyric_features.csv"
+df = pd.read_csv(
+    'data/song_lyric_features.csv',
+    engine='pyarrow',
+    dtype_backend='pyarrow'
 )
+
+# Read the CSV file into a Polars DataFrame
+import polars as pl
+pl_df = pl.read_csv('data/song_lyric_features.csv')
 
 # calculating the mean sentiment
 
-mean_sentiment = song_lyric_features.select(
+mean_sentiment = pl_df.select(
     pl.col("sentiment").mean()
     ).to_numpy()[0][0]

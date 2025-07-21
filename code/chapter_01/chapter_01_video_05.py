@@ -2,56 +2,54 @@
 ### Merging Data ###
 ####################
 
-import sqlite3
 import pandas as pd
-import polars as pl
 
-song_lyric_features = pl.read_csv(
-    "data/song_lyric_features.csv"
+df = pd.read_csv(
+    'data/song_lyric_features.csv',
+    engine='pyarrow',
+    dtype_backend='pyarrow'
 )
+
+# Read the CSV file into a Polars DataFrame
+import polars as pl
+pl_df = pl.read_csv('data/song_lyric_features.csv')
+
+# calculating the mean sentiment
+
+mean_sentiment = pl_df.select(
+    pl.col("sentiment").mean()
+    ).to_numpy()[0][0]
 
 link = 'https://4041140.youcanlearnit.net/'
 
-song_genre = pd.read_html(link)
+# Read the HTML table from the link using pandas
+html_tables = pd.read_html(link)
+# If there are multiple tables, the first one can be accessed as html_tables[0]
+first_table = html_tables[0]
 
-song_genre = song_genre[0]
-
-conn = sqlite3.connect(
-            database="data/songs_database.db",
-)
-
-cursor = conn.cursor()
-
-cursor.execute(f"PRAGMA table_info(songs)")
-
-column_info = cursor.fetchall()
-
-col_names = [column[1] for column in column_info]
-
-cursor.execute("SELECT * FROM songs")
-
-song_rows = cursor.fetchall()
-
-song_weeks = pd.DataFrame(song_rows, columns=col_names)
-
-cursor.close()
-
+# Read all columns from the songs table in the SQLite database into a DataFrame
+import sqlite3
+conn = sqlite3.connect('data/songs_database.db')
+songs_df = pd.read_sql_query('SELECT * FROM songs', conn)
 conn.close()
 
-song_personnel = pd.read_feather("data/song_personnel.feather")
+songs_df = songs_df[songs_df['highest_rank'] < 25]
 
-songs = pd.merge(
-    song_lyric_features.to_pandas(), song_genre, 
-    how='left', left_on='song_id', right_on='Song ID'
-)
+# Use duckdb to select all columns from the songs table and filter rows
+import duckdb
+duckdb_df = duckdb.query("SELECT * FROM 'data/songs_database.db'.songs WHERE highest_rank < 25").to_df()
 
-songs = songs.merge(
-    song_weeks, on='song_id'
-)
+# Read the songs_personnel.feather file
+song_personnel = pd.read_feather('data/song_personnel.feather')
 
-songs = songs.merge(
-    song_personnel, on='song_id'
-)
+# Convert pl_df to pandas DataFrame if needed
+if not isinstance(pl_df, pd.DataFrame):
+    pl_df = pl_df.to_pandas()
 
-songs.to_csv("data/songs.csv", index=False)
+# Left join all DataFrames on song_id
+songs = pl_df.merge(first_table, left_on='song_id', right_on='Song ID', how='left') \
+    .merge(songs_df, on='song_id', how='left') \
+    .merge(song_personnel, on='song_id', how='left')
 
+# Write the songs DataFrame to a CSV file
+songs.to_csv('data/songs_joined.csv', index=False)

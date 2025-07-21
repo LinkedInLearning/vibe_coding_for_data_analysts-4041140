@@ -2,35 +2,30 @@
 ### Examning correlations ###
 #############################
 
-import polars as pl
+import pandas as pd
 
-pl.Config.set_tbl_cols(20)
+songs_joined = pd.read_csv('data/songs_joined.csv')
+# Remove the time from release_week and convert to date
+if 'release_week' in songs_joined.columns:
+    songs_joined['release_week'] = pd.to_datetime(songs_joined['release_week']).dt.date
 
-songs = pl.read_csv("data/songs.csv")
 
-songs = songs.with_columns(
-    pl.col("release_week").str.replace(" 00:00:00", "")
-)
+songs_joined['release_week']
+    
+# Convert genre to a categorical variable
+if 'Genre' in songs_joined.columns:
+    songs_joined['Genre'] = songs_joined['Genre'].astype('category')
 
-songs = songs.with_columns(
-    pl.col("release_week").str.strptime(pl.Date, "%Y-%m-%d")
-)
+print(songs_joined.corr(numeric_only=True))
 
-songs = songs.with_columns(
-    pl.col("Genre").cast(pl.Categorical)
-)
-
-numeric_cols = songs.select(pl.col(pl.Float64, pl.Int64))
-
-correlations = songs.select(numeric_cols).to_pandas().corr()
-
-# visualize the correlation matrix
-
+# Visualize the correlations using a corrplot
+import matplotlib.pyplot as plt
 import seaborn as sns
-import matplotlib.pyplot as plt 
 
+correlation_matrix = songs_joined.corr(numeric_only=True)
 plt.figure(figsize=(10, 8))
-
-sns.heatmap(correlations, annot=True, fmt=".2f", cmap="coolwarm", square=True)
-
+sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f', square=True)
+plt.title('Correlation Matrix of Numeric Variables')
+plt.tight_layout()
 plt.show()
+

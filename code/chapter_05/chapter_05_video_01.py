@@ -2,21 +2,27 @@
 ### Creating ridge plots ###
 ############################
 
-import polars as pl
-from ridgeplot import ridgeplot
+import pandas as pd
+import matplotlib.pyplot as plt
+import joypy
 
-songs = pl.read_csv("data/songs_complete.csv")
+# Read the CSV file
+df = pd.read_csv("data/songs_joined.csv")
 
-plot_data = songs.select([
-    pl.col("sentiment"), 
-    pl.col("number_1_hit")
-])
-
-samples = []
-
-for value in songs["number_1_hit"].unique().to_list():
-    samples.append(songs.filter(pl.col("number_1_hit") == value).select("sentiment").drop_nulls().to_numpy().flatten())
-
-fig = ridgeplot(samples=samples)
-
-fig.show()
+# Ensure 'Genre' and 'sentiment' columns exist
+if 'Genre' in df.columns and 'sentiment' in df.columns:
+    plt.figure(figsize=(12, 8))
+    joypy.joyplot(
+        df,
+        by="Genre",
+        column="sentiment",
+        figsize=(12, 8),
+        legend=False,
+        colormap=plt.cm.Set2
+    )
+    plt.title("Ridgeline Chart of Sentiment by Genre")
+    plt.xlabel("Sentiment")
+    plt.tight_layout()
+    plt.show()
+else:
+    print("Required columns 'Genre' and 'sentiment' not found in the data.")

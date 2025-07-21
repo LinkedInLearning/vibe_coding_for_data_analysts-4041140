@@ -3,17 +3,21 @@
 ################################
 
 import joblib
-import polars as pl
-import pandas as pd
 import shap
+import pandas as pd
 
-X_train, X_test, y_train, y_test, feature_names = joblib.load("data/model_data.joblib")
+# Load the trained XGBoost model
+xgb_model = joblib.load("data/xgb_model.joblib")
 
-X_train = pd.DataFrame(X_train)
+# Load test data
+X_test = joblib.load("data/songs_scaled_test.joblib")
 
-xgb_model = joblib.load("models/xgb_model.joblib")
+# Create SHAP explainer and values
+explainer = shap.TreeExplainer(xgb_model)
+shap_values = explainer.shap_values(X_test)
 
-explainer = shap.Explainer(xgb_model.predict, shap.utils.sample(X_train, 1000))
-shap_values = explainer(X_train.sample(10))
+# Summary plot
+shap.summary_plot(shap_values, X_test, plot_type="bar")
 
-shap.plots.waterfall(shap_values[0])
+# Detailed beeswarm plot
+shap.summary_plot(shap_values, X_test)

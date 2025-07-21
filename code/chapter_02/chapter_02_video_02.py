@@ -2,20 +2,16 @@
 ### Converting data types ###
 #############################
 
-import polars as pl
+import pandas as pd
 
-pl.Config.set_tbl_cols(20)
+songs_joined = pd.read_csv('data/songs_joined.csv')
+# Remove the time from release_week and convert to date
+if 'release_week' in songs_joined.columns:
+    songs_joined['release_week'] = pd.to_datetime(songs_joined['release_week']).dt.date
 
-songs = pl.read_csv("data/songs.csv")
 
-songs = songs.with_columns(
-    pl.col("release_week").str.replace(" 00:00:00", "")
-)
-
-songs = songs.with_columns(
-    pl.col("release_week").str.strptime(pl.Date, "%Y-%m-%d")
-)
-
-songs = songs.with_columns(
-    pl.col("Genre").cast(pl.Categorical)
-)
+songs_joined['release_week']
+    
+# Convert genre to a categorical variable
+if 'Genre' in songs_joined.columns:
+    songs_joined['Genre'] = songs_joined['Genre'].astype('category')
