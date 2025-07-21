@@ -61,7 +61,7 @@ if st.button("Analyze"):
                 model = joblib.load("models/xgb_model.joblib")
             except FileNotFoundError:
                 try:
-                    model = joblib.load("logistic_model.joblib")
+                    model = joblib.load("xgb_model.joblib")
                 except Exception as e:
                     st.error(f"Model file not found: {e}")
                     model = None
@@ -89,3 +89,4 @@ if st.button("Analyze"):
         st.write(f"**Genre:** {genre}")
         st.write(f"**Songwriter Count:** {songwriter_count}")
         st.write(f"**Producer Count:** {producer_count}")
+
